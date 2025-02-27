@@ -146,32 +146,142 @@ class MainWindow(QMainWindow):
         
         # 设置基本样式
         self.setStyleSheet("""
-            QWidget {
-                background-color: white;
-                color: black;
+            QMainWindow {
+                background-color: #f5f5f5;
             }
+            
+            /* 左侧会话列表样式 */
+            QListWidget {
+                background-color: #ffffff;
+                border: 2px solid #a0a0a0;  /* 更粗更深的边框 */
+                border-radius: 4px;
+                padding: 5px;
+            }
+            QListWidget::item {
+                color: #000000;  /* 确保文字为黑色 */
+                padding: 8px;    /* 增加内边距 */
+                margin: 2px;     /* 增加项目间距 */
+                border: 1px solid #d0d0d0;  /* 默认显示边框 */
+                border-radius: 3px;
+                background: #f8f8f8;  /* 轻微的背景色 */
+            }
+            QListWidget::item:selected {
+                background: #e3f2fd;
+                color: #000000;  /* 保持文字黑色 */
+                border: 2px solid #1976d2;  /* 更粗的边框 */
+                font-weight: bold;  /* 选中项加粗 */
+            }
+            QListWidget::item:hover {
+                background: #f0f0f0;
+                border: 1px solid #1976d2;
+            }
+            
+            /* 标签页样式 */
             QTabWidget::pane {
-                border: 1px solid #cccccc;
+                border: 2px solid #a0a0a0;  /* 更粗更深的边框 */
+                background: white;
+                border-radius: 4px;
             }
             QTabBar::tab {
-                background: #f0f0f0;
-                border: 1px solid #cccccc;
-                padding: 5px 10px;
+                background: #e8e8e8;  /* 更深的背景色 */
+                border: 2px solid #a0a0a0;  /* 更粗更深的边框 */
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                padding: 8px 12px;
+                margin-right: 2px;
+                color: #000000;  /* 确保文字为黑色 */
             }
             QTabBar::tab:selected {
                 background: white;
-                border-bottom-color: white;
+                border: 2px solid #1976d2;  /* 选中标签使用主题色边框 */
+                border-bottom: 2px solid white;  /* 底部边框为白色 */
+                font-weight: bold;  /* 选中标签文字加粗 */
             }
-            QListWidget {
-                border: 1px solid #cccccc;
+            QTabBar::tab:hover:!selected {
+                background: #f0f0f0;
+                border: 2px solid #b0b0b0;
             }
-            QListWidget::item:selected {
-                background: #e6e6e6;
-                color: black;
+            
+            /* 按钮样式 */
+            QPushButton {
+                background-color: #1976d2;
+                color: white;
+                border: none;
+                padding: 5px 15px;
+                border-radius: 3px;
+                min-width: 80px;
             }
-            QTextEdit {
-                selection-background-color: #00AA00;
-                selection-color: #FFFFFF;
+            QPushButton:hover {
+                background-color: #1565c0;
+            }
+            QPushButton:pressed {
+                background-color: #0d47a1;
+            }
+            QPushButton:disabled {
+                background-color: #bbdefb;
+                color: #90caf9;
+            }
+            
+            /* 输入框样式 */
+            QLineEdit {
+                padding: 5px;
+                border: 1px solid #c0c0c0;  /* 加深边框颜色 */
+                border-radius: 3px;
+                background: white;
+            }
+            QLineEdit:focus {
+                border: 1px solid #1976d2;
+            }
+            
+            /* 终端输入框特殊样式 */
+            #terminalInput {
+                background-color: #000000;
+                color: #00FF00;
+                border: none;
+            }
+            
+            /* 标签样式 */
+            QLabel {
+                color: #424242;
+                font-weight: normal;  /* 默认不加粗 */
+            }
+            
+            /* 复选框样式 */
+            QCheckBox {
+                spacing: 5px;
+            }
+            QCheckBox::indicator {
+                width: 15px;
+                height: 15px;
+            }
+            QCheckBox::indicator:unchecked {
+                border: 1px solid #c0c0c0;  /* 加深边框颜色 */
+                background: white;
+            }
+            QCheckBox::indicator:checked {
+                border: 1px solid #1976d2;
+                background: #1976d2;
+            }
+            
+            /* 端口输入框样式 */
+            QSpinBox {
+                padding: 5px;
+                border: 1px solid #c0c0c0;  /* 加深边框颜色 */
+                border-radius: 3px;
+                background: white;  /* 移除黑色背景 */
+                color: black;  /* 确保文字为黑色 */
+            }
+            QSpinBox:focus {
+                border: 1px solid #1976d2;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                border: none;
+                background: #f5f5f5;
+                border-radius: 2px;
+            }
+            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
+                background: #e3f2fd;
             }
         """)
     
@@ -628,6 +738,7 @@ class MainWindow(QMainWindow):
 class TerminalInput(QLineEdit):
     def __init__(self, ssh_client, terminal_output=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.setObjectName("terminalInput")
         self.ssh_client = ssh_client
         self.terminal_output = terminal_output
         self.command_history = []
