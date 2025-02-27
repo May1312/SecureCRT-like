@@ -54,21 +54,10 @@ class SSHClient:
         """发送原始命令，包括特殊字符"""
         if self.connected and self.channel:
             try:
-                print(f"发送原始命令: {repr(command)}")  # 控制台日志
-                # 特殊处理Tab键
                 if command == "\t":
-                    print("检测到Tab键，发送Tab字符")  # 控制台日志
-                    # 尝试使用多种方式发送Tab
-                    try:
-                        # 方法1: ASCII码9
-                        self.channel.send(bytes([9]))
-                        print("使用ASCII码9发送Tab成功")
-                    except:
-                        # 方法2: 尝试直接发送字符串
-                        print("方法1失败，尝试方法2")
-                        self.channel.send("\t")
+                    # 直接发送 Tab ASCII 码
+                    self.channel.send(b'\t')
                 else:
-                    # 发送其他命令
                     self.channel.send(command)
             except Exception as e:
-                print(f"发送命令错误: {str(e)}")  # 控制台日志 
+                print(f"发送命令错误: {str(e)}") 

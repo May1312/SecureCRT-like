@@ -23,11 +23,29 @@ class GlobalEventFilter(QObject):
             # 检查是否有活动的终端输入框
             for input_box, terminal_output, ssh_client in self.terminal_inputs:
                 if input_box.hasFocus() and ssh_client and ssh_client.connected:
-                    # 不在全局过滤器中处理Tab键
-                    # 移除所有Tab键处理代码
+                    # 处理Tab键
+                    if event.key() == Qt.Key.Key_Tab:
+                        try:
+                            # 记录补全状态
+                            input_box.tab_completion_active = True
+                            input_box.original_command = input_box.text()
+                            
+                            # 发送Tab
+                            ssh_client.channel.send(b'\t')
+                            
+                            # 强制保持焦点
+                            input_box.setFocus(Qt.FocusReason.OtherFocusReason)
+                            
+                            # 阻止事件继续传播
+                            return True
+                            
+                        except Exception as e:
+                            if terminal_output:
+                                terminal_output.append(f"\n[错误] Tab发送失败: {str(e)}")
+                            return True
                     
-                    # 只处理Ctrl+C - 终止命令
-                    if event.key() == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+                    # 处理Ctrl+C
+                    elif event.key() == Qt.Key.Key_C and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
                         try:
                             ssh_client.channel.send(b'\x03')  # Ctrl+C
                             return True
@@ -618,37 +636,19 @@ class TerminalInput(QLineEdit):
         self.setStyleSheet("background-color: #000000; color: #00FF00; border: none;")
         self.tab_completion_active = False
         self.original_command = ""
+        
+        # 设置焦点策略
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     
     def keyPressEvent(self, event):
-        # 处理Tab键
-        if event.key() == Qt.Key.Key_Tab:
-            if self.ssh_client and self.ssh_client.connected:
-                try:
-                    # 记录当前命令和等待补全状态
-                    self.tab_completion_active = True
-                    self.original_command = self.text()
-                    
-                    # 显示调试信息
-                    if self.terminal_output:
-                        self.terminal_output.append(f"\n[调试] Tab键请求补全: {self.original_command}")
-                    
-                    # 发送Tab字符
-                    self.ssh_client.channel.send(b'\t')
-                except Exception as e:
-                    if self.terminal_output:
-                        self.terminal_output.append(f"\n[错误] Tab发送失败: {str(e)}")
-            # 不调用父类方法，完全拦截Tab键
-            return
-        
-        # 处理历史命令 - 上箭头
-        elif event.key() == Qt.Key.Key_Up:
+        # 只处理上下箭头历史命令
+        if event.key() == Qt.Key.Key_Up:
             if self.command_history and self.history_index < len(self.command_history) - 1:
                 self.history_index += 1
                 self.setText(self.command_history[self.history_index])
                 self.setCursorPosition(len(self.text()))
             return
         
-        # 处理历史命令 - 下箭头
         elif event.key() == Qt.Key.Key_Down:
             if self.history_index > 0:
                 self.history_index -= 1
@@ -658,8 +658,17 @@ class TerminalInput(QLineEdit):
                 self.clear()
             return
             
-        # 对于其他键，使用默认处理
+        # 其他键的默认处理
         super().keyPressEvent(event)
+
+    def focusOutEvent(self, event):
+        # 如果是在 Tab 补全过程中，阻止失焦
+        if self.tab_completion_active:
+            QTimer.singleShot(1, lambda: self.setFocus(Qt.FocusReason.MouseFocusReason))
+            event.ignore()
+            return
+        
+        super().focusOutEvent(event)
 
 # 激活Tab处理
 # setup_tab_handling() 
