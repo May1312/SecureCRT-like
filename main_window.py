@@ -756,7 +756,35 @@ class MainWindow(QMainWindow):
     def connect_selected(self):
         """连接选中的会话"""
         if self.session_list.currentItem():
-            self.load_session(self.session_list.currentItem())
+            name = self.session_list.currentItem().text()
+            
+            settings = QSettings("SSH客户端", "连接")
+            settings.beginGroup(name)
+            
+            # 填充连接信息到当前标签页
+            self.session_name.setText(name)
+            self.hostname.setText(settings.value("hostname", ""))
+            self.port.setValue(int(settings.value("port", 22)))
+            self.username.setText(settings.value("username", ""))
+            
+            use_key = settings.value("use_key", "false") == "true"
+            self.use_key.setChecked(use_key)
+            
+            if use_key:
+                self.key_file.setText(settings.value("key_file", ""))
+                self.key_file.setEnabled(True)
+                
+                # 查找浏览按钮并启用
+                for child in self.content_widget.currentWidget().findChildren(QPushButton):
+                    if child.text() == "浏览...":
+                        child.setEnabled(True)
+                        break
+            else:
+                self.password.setText(settings.value("password", ""))
+            
+            settings.endGroup()
+            
+            # 直接连接服务器
             self.connect_to_server()
     
     def delete_selected(self):
