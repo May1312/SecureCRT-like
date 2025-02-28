@@ -39,13 +39,14 @@ class GlobalEventFilter(QObject):
                                 return True
                             
                             # 记录原始命令和状态
-                            input_box.original_command = current_text
-                            input_box.tab_completion_active = True
-                            ssh_client.current_command = current_text
-                            
-                            # 先发送当前命令
-                            ssh_client.channel.send(current_text.encode())
-                            time.sleep(0.05)
+                            if not input_box.tab_completion_active:
+                                input_box.original_command = current_text
+                                input_box.tab_completion_active = True
+                                ssh_client.current_command = current_text
+                                
+                                # 先发送当前命令
+                                ssh_client.channel.send(current_text.encode())
+                                time.sleep(0.05)
                             
                             # 发送Tab
                             ssh_client.send_raw("\t")

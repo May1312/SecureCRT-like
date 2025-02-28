@@ -88,8 +88,8 @@ class SSHClient:
         if self.connected and self.channel:
             try:
                 if command == "\t":
-                    # 发送Tab字符
-                    self.channel.send(b'\t')
+                    # 发送两个Tab字符来显示所有可能的补全选项
+                    self.channel.send(b'\t\t')
                     time.sleep(0.1)  # 等待响应
                 else:
                     self.channel.send(command)
