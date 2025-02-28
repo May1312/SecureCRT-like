@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt6.QtCore import Qt, QSettings, QEvent, QObject, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette, QKeyEvent, QTextCursor
 import re  # 添加正则表达式支持
+import os  # 添加os模块支持
+import time  # 添加time模块支持
 
 # 添加缺失的导入
 from ssh_client import SSHClient
@@ -14,6 +16,11 @@ class GlobalEventFilter(QObject):
     def __init__(self, terminal_inputs=None):
         super().__init__()
         self.terminal_inputs = terminal_inputs or []  # 存储所有终端输入框的引用
+    
+    def reset_completion_state(self, input_box, ssh_client):
+        """重置补全状态"""
+        input_box.tab_completion_active = False
+        ssh_client.tab_completion = False
     
     def eventFilter(self, obj, event):
         # 处理按键事件
@@ -26,22 +33,34 @@ class GlobalEventFilter(QObject):
                     # 处理Tab键
                     if event.key() == Qt.Key.Key_Tab:
                         try:
-                            # 记录补全状态
+                            # 记录当前命令
+                            current_text = input_box.text()
+                            if not current_text:
+                                return True
+                            
+                            # 记录原始命令和状态
+                            input_box.original_command = current_text
                             input_box.tab_completion_active = True
-                            input_box.original_command = input_box.text()
+                            ssh_client.current_command = current_text
+                            
+                            # 先发送当前命令
+                            ssh_client.channel.send(current_text.encode())
+                            time.sleep(0.05)
                             
                             # 发送Tab
-                            ssh_client.channel.send(b'\t')
+                            ssh_client.send_raw("\t")
                             
                             # 强制保持焦点
                             input_box.setFocus(Qt.FocusReason.OtherFocusReason)
                             
-                            # 阻止事件继续传播
                             return True
                             
                         except Exception as e:
                             if terminal_output:
                                 terminal_output.append(f"\n[错误] Tab发送失败: {str(e)}")
+                            # 确保在异常情况下重置状态
+                            input_box.tab_completion_active = False
+                            ssh_client.tab_completion = False
                             return True
                     
                     # 处理Ctrl+C
@@ -519,30 +538,62 @@ class MainWindow(QMainWindow):
                 
                 # 检查Tab补全结果
                 if command_input.tab_completion_active:
-                    # 分析最后一个命令行
-                    lines = clean_data.strip().split('\n')
-                    for line in lines:
-                        # 查找提示符行
-                        if "]#" in line:
-                            terminal_output.append(f"\n[调试] 检查行: {line}")
-                            # 提取命令
-                            cmd_parts = line.split("#", 1)
-                            if len(cmd_parts) > 1:
-                                cmd = cmd_parts[1].strip()
-                                terminal_output.append(f"\n[调试] 提取命令: {cmd}")
-                                # 如果补全后的命令比原始命令长
-                                if cmd and cmd.startswith(command_input.original_command) and len(cmd) > len(command_input.original_command):
-                                    terminal_output.append(f"\n[调试] 找到补全: {cmd}")
-                                    # 更新输入框
-                                    command_input.setText(cmd)
-                                    command_input.setCursorPosition(len(cmd))
-                                    # 重置补全状态
-                                    command_input.tab_completion_active = False
-                                    break
-                    
-                    # 如果完成处理但没找到匹配项，也要重置状态
-                    if command_input.tab_completion_active:
+                    try:
+                        # 分析输出内容
+                        lines = clean_data.strip().split('\n')
+                        
+                        # 过滤并处理补全选项
+                        completion_lines = []
+                        current_cmd = command_input.original_command.strip()
+                        
+                        # 处理每一行
+                        for line in lines:
+                            line = line.strip()
+                            # 跳过空行和提示符行
+                            if not line or line == current_cmd:
+                                continue
+                            
+                            # 处理可能包含多个选项的行
+                            words = line.split()
+                            for word in words:
+                                word = word.strip()
+                                if word and word.startswith(current_cmd):
+                                    completion_lines.append(word)
+                        
+                        # 去重并排序
+                        completion_lines = sorted(set(completion_lines))
+                        
+                        if completion_lines:
+                            # 如果只有一个选项，直接补全
+                            if len(completion_lines) == 1:
+                                new_text = completion_lines[0]
+                                if new_text != current_cmd:
+                                    command_input.setText(new_text)
+                                    command_input.setCursorPosition(len(new_text))
+                            else:
+                                # 找到共同前缀
+                                common = os.path.commonprefix(completion_lines)
+                                if common and len(common) > len(current_cmd):
+                                    command_input.setText(common)
+                                    command_input.setCursorPosition(len(common))
+                                
+                                # 显示所有可能的补全选项
+                                terminal_output.append("\n可能的补全选项:")
+                                for option in completion_lines:
+                                    terminal_output.append(option)
+                        
+                        # 重置补全状态的条件：
+                        # 1. 找到并应用了补全选项
+                        # 2. 收到了提示符
+                        # 3. 没有找到任何补全选项
+                        if completion_lines or ']#' in clean_data or '$' in clean_data or not lines:
+                            command_input.tab_completion_active = False
+                            ssh_client.tab_completion = False
+                        
+                    except Exception as e:
+                        terminal_output.append(f"\n[错误] 补全处理失败: {str(e)}")
                         command_input.tab_completion_active = False
+                        ssh_client.tab_completion = False
                 
                 # 确保滚动到底部
                 QApplication.processEvents()

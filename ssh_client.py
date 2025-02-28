@@ -1,6 +1,7 @@
 import paramiko
 import threading
 import time
+import re
 
 class SSHClient:
     def __init__(self):
@@ -40,11 +41,43 @@ class SSHClient:
     def start_receiving(self, callback):
         """启动接收数据的线程"""
         def receive_data():
+            buffer = ""
+            last_data_time = 0
             while self.connected and self.channel:
                 if self.channel.recv_ready():
-                    data = self.channel.recv(1024)
-                    callback(data.decode('utf-8', errors='replace'))
-                time.sleep(0.1)
+                    try:
+                        # 接收数据
+                        data = self.channel.recv(1024).decode('utf-8', errors='replace')
+                        last_data_time = time.time()
+                        
+                        # 处理数据中的特殊字符
+                        data = data.replace('\x07', '')  # 删除响铃
+                        data = data.replace('\x1b[K', '') # 删除清除行
+                        data = re.sub(r'\x1b\[\d*[A-Za-z]', '', data)  # 删除ANSI转义序列
+                        
+                        # 缓冲数据
+                        buffer += data
+                        
+                        # 如果有完整的行或提示符，处理数据
+                        if '\n' in buffer or ']#' in buffer or '$' in buffer:
+                            if buffer.strip():
+                                callback(buffer)
+                            buffer = ""
+                            
+                    except Exception as e:
+                        print(f"接收数据错误: {str(e)}")
+                        buffer = ""
+                else:
+                    # 如果超过100ms没有新数据，且有未处理的数据，则处理它
+                    if buffer and time.time() - last_data_time > 0.1:
+                        if buffer.strip():
+                            callback(buffer)
+                        buffer = ""
+                    time.sleep(0.01)
+            
+            # 处理剩余的缓冲数据
+            if buffer:
+                callback(buffer)
         
         thread = threading.Thread(target=receive_data)
         thread.daemon = True
@@ -55,9 +88,12 @@ class SSHClient:
         if self.connected and self.channel:
             try:
                 if command == "\t":
-                    # 直接发送 Tab ASCII 码
+                    # 发送Tab字符
                     self.channel.send(b'\t')
+                    time.sleep(0.1)  # 等待响应
                 else:
                     self.channel.send(command)
+                    self.tab_completion = False  # 非Tab键时重置补全状态
             except Exception as e:
-                print(f"发送命令错误: {str(e)}") 
+                print(f"发送命令错误: {str(e)}")
+                self.tab_completion = False 
