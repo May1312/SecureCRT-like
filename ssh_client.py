@@ -92,7 +92,7 @@ class SSHClient:
                     self.channel.send(b'\t\t')
                     time.sleep(0.1)  # 等待响应
                 else:
-                    self.channel.send(command)
+                    self.channel.send(command.encode())
                     self.tab_completion = False  # 非Tab键时重置补全状态
             except Exception as e:
                 print(f"发送命令错误: {str(e)}")

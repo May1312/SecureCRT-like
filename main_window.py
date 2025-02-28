@@ -529,14 +529,6 @@ class MainWindow(QMainWindow):
                 if len(current_text) > 100000:
                     terminal_output.setPlainText(current_text[-50000:])
                 
-                # 添加输出到终端
-                if clean_data.strip():
-                    terminal_output.append(clean_data.strip())
-                    
-                    # 输出补全状态用于调试
-                    if command_input.tab_completion_active:
-                        terminal_output.append(f"\n[调试] 处理补全响应，原始命令: {command_input.original_command}")
-                
                 # 检查Tab补全结果
                 if command_input.tab_completion_active:
                     try:
@@ -545,7 +537,8 @@ class MainWindow(QMainWindow):
                         
                         # 过滤并处理补全选项
                         completion_lines = []
-                        current_cmd = command_input.original_command.strip()
+                        current_cmd = command_input.text().strip()  # 使用完整的当前命令
+                        last_part = current_cmd.split()[-1] if ' ' in current_cmd else current_cmd
                         
                         # 处理每一行
                         for line in lines:
@@ -558,58 +551,62 @@ class MainWindow(QMainWindow):
                             words = line.split()
                             for word in words:
                                 word = word.strip()
-                                if word and word.startswith(current_cmd):
+                                if word and word.startswith(last_part):
                                     completion_lines.append(word)
                         
                         # 去重并排序
                         completion_lines = sorted(set(completion_lines))
                         
+                        # 显示补全选项到终端
                         if completion_lines:
+                            # 先显示原始输出（但不包括命令提示符部分）
+                            output_lines = []
+                            for line in clean_data.strip().split('\n'):
+                                if not (']#' in line or '$' in line):
+                                    output_lines.append(line)
+                            if output_lines:
+                                terminal_output.append('\n'.join(output_lines))
+                            
                             # 如果只有一个选项，直接补全
                             if len(completion_lines) == 1:
                                 new_text = completion_lines[0]
-                                if new_text != current_cmd:
-                                    command_input.setText(new_text)
-                                    command_input.setCursorPosition(len(new_text))
+                                if new_text != last_part:
+                                    # 获取命令的前缀部分
+                                    prefix = current_cmd[:current_cmd.rindex(last_part)]
+                                    # 设置完整的命令
+                                    full_command = prefix + new_text
+                                    command_input.setText(full_command)
+                                    command_input.setCursorPosition(len(full_command))
                             else:
                                 # 找到共同前缀
                                 common = os.path.commonprefix(completion_lines)
-                                if common and len(common) > len(current_cmd):
-                                    command_input.setText(common)
-                                    command_input.setCursorPosition(len(common))
-                                
-                                # 显示所有可能的补全选项
-                                terminal_output.append("\n可能的补全选项:")
-                                for option in completion_lines:
-                                    terminal_output.append(option)
+                                if common and len(common) > len(last_part):
+                                    # 获取命令的前缀部分
+                                    prefix = current_cmd[:current_cmd.rindex(last_part)]
+                                    # 设置完整的命令
+                                    full_command = prefix + common
+                                    command_input.setText(full_command)
+                                    command_input.setCursorPosition(len(full_command))
                         
-                        # 重置补全状态的条件：
-                        # 1. 找到并应用了补全选项
-                        # 2. 收到了提示符
-                        # 3. 没有找到任何补全选项
-                        if completion_lines or ']#' in clean_data or '$' in clean_data or not lines:
+                        # 重置补全状态
+                        if ']#' in clean_data or '$' in clean_data:
                             command_input.tab_completion_active = False
                             ssh_client.tab_completion = False
+                        
+                        return
                         
                     except Exception as e:
                         terminal_output.append(f"\n[错误] 补全处理失败: {str(e)}")
                         command_input.tab_completion_active = False
                         ssh_client.tab_completion = False
                 
-                # 确保滚动到底部
-                QApplication.processEvents()
-                terminal_output.ensureCursorVisible()
-                cursor = terminal_output.textCursor()
-                cursor.movePosition(QTextCursor.MoveOperation.End)
-                terminal_output.setTextCursor(cursor)
-                scrollbar = terminal_output.verticalScrollBar()
-                scrollbar.setValue(scrollbar.maximum())
-                
-                # 更新路径信息
-                path_match = re.search(r'\[.*?@.*? (.*?)\]', clean_data)
-                if path_match:
-                    current_path = path_match.group(1)
-                    prompt_label.setText(f"[{username}@{host} {current_path}]# ")
+                # 只有在非补全状态下才显示命令输出
+                elif clean_data.strip():
+                    # 检查是否是命令提示符行
+                    if ']#' in clean_data or '$' in clean_data:
+                        # 如果是命令提示符行，不显示
+                        return
+                    terminal_output.append(clean_data.strip())
             
             except Exception as e:
                 # 出错时显示原始数据
