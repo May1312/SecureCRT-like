@@ -450,6 +450,19 @@ class MainWindow(QMainWindow):
         terminal_output.setFont(QFont("Courier New", 10))
         terminal_output.setStyleSheet("background-color: #000000; color: #00FF00; border: none;")
         
+        # 设置自动滚动属性
+        terminal_output.document().setMaximumBlockCount(5000)  # 限制最大行数
+        terminal_output.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        
+        # 创建自动滚动函数
+        def ensure_visible():
+            cursor = terminal_output.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            terminal_output.setTextCursor(cursor)
+        
+        # 将自动滚动函数附加到终端输出对象
+        terminal_output.ensure_visible = ensure_visible
+        
         # 创建SSH客户端
         ssh_client = SSHClient()
         
@@ -607,13 +620,15 @@ class MainWindow(QMainWindow):
                         # 如果是命令提示符行，不显示
                         return
                     terminal_output.append(clean_data.strip())
+                    
+                    # 使用自定义方法自动滚动到底部
+                    terminal_output.ensure_visible()
             
             except Exception as e:
                 # 出错时显示原始数据
                 terminal_output.append(data)
                 # 确保滚动到底部
-                scrollbar = terminal_output.verticalScrollBar()
-                scrollbar.setValue(scrollbar.maximum())
+                terminal_output.ensure_visible()
         
         # 连接服务器
         success = False
@@ -649,13 +664,16 @@ class MainWindow(QMainWindow):
                 cmd = command_input.text()
                 if cmd:
                     # 添加到历史
-                    command_history.insert(0, cmd)
-                    if len(command_history) > 100:
-                        command_history.pop()
+                    command_input.command_history.insert(0, cmd)
+                    if len(command_input.command_history) > 100:
+                        command_input.command_history.pop()
                     command_input.history_index = -1
                     
                     # 显示命令
                     terminal_output.append(f"{prompt_label.text()} {cmd}")
+                    
+                    # 使用自定义方法自动滚动到底部
+                    terminal_output.ensure_visible()
                     
                     # 发送命令
                     ssh_client.send_command(cmd)

@@ -68,8 +68,8 @@ class SSHClient:
                         print(f"接收数据错误: {str(e)}")
                         buffer = ""
                 else:
-                    # 如果超过100ms没有新数据，且有未处理的数据，则处理它
-                    if buffer and time.time() - last_data_time > 0.1:
+                    # 如果超过50ms没有新数据，且有未处理的数据，则处理它
+                    if buffer and time.time() - last_data_time > 0.05:
                         if buffer.strip():
                             callback(buffer)
                         buffer = ""
